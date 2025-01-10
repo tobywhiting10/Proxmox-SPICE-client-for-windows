@@ -2,19 +2,32 @@ import os
 import subprocess
 import json
 
-def getDATA(username,password,server):
+server = "10.10.20.2" # The address of the server to connect to
+node = "miniboi1" # the nodename of the server
+
+vm = "107" # the vm id to initiate a connexion with
+
+username = "root@pam" # username and password to authenticate to the server must have console permission 
+relm = "pam"
+password = "DJToby1234!"
+APIkey = ""
+# Log Levle: NONE, ERROR, INFO, DEBUG
+logLevle = "DEBUG"
+
+def getAUTH(username,password,server):
     # Get Data from Proxmox Auth API and dump into a file
     # This command uses the provided credentials to contact the server
     # and get a ticket which is used for authenticating future commands
     # think "browser login cookies", it also returns what permissions the user has. 
     cmd = 'curl -k -d "username={}&password={}"  https://{}:8006/api2/json/access/ticket > ./Data'.format(username,password,server)
     os.system(cmd)
-    print("Credentials obtaind for user {}".format(username))
+    if (logLevle=="DEBUG"): print("Credentials obtaind for user {}".format(username))
   
     # Read dump file containing the output of the ticket request
     File = open("./Data","r")
     Data = File.read()
     File.close()
+    #os.remove("Data")
     
 
     # Get Ticket
@@ -23,7 +36,7 @@ def getDATA(username,password,server):
     Start = '"ticket":"'
     End = '"'
     Ticket = (Data.split(Start))[1].split(End)[0]
-    print("Ticket \"{}\"".format(Ticket))
+    if (logLevle=="DEBUG"): print("Ticket \"{}\"".format(Ticket))
 
     # Get Token
     # For added security, proxmox makes use of CSRF tokens which ensure each authentication can only be
@@ -32,14 +45,14 @@ def getDATA(username,password,server):
     Start = '"CSRFPreventionToken":"'
     End = '"'
     Token = (Data.split(Start))[1].split(End)[0]
-    print("CSRF Token \"{}\"".format(Token))
+    if (logLevle=="DEBUG"): print("CSRF Token \"{}\"".format(Token))
   
     # Get proxy DATA
     # To connect to each VM, we are using the SPICE protocol, a type of remote desktop application.
     # This command connects to the server using the credentials which we just retrieved and requests the
     # information witch is used to initiate a SPICE connexion with the requested VM id
     cmd = 'curl -f -X POST -s -S -k -b "PVEAuthCookie={}" -H "CSRFPreventionToken: {}" https://{}:8006/api2/json/nodes/{}/qemu/{}/spiceproxy'.format(Ticket,Token,server,node,vm)
-    print("Command \"{}\"".format(cmd))
+    if (logLevle=="DEBUG"): print("Command \"{}\"".format(cmd))
 
 
     # As this command is a bit more finicky and takes longer to run, we will use the "subprocess.run"
@@ -88,10 +101,6 @@ fullscreen=1
     except subprocess.CalledProcessError as e:
         print(f"Error launching SPICE viewer: {e}")
 
-server = "10.10.10.2"
-node = "pve"
-vm = "101"
-username = "student1@pve"
-password = "12345678"
 
-getDATA(username,password,server)
+
+getAUTH(username,password,server)
