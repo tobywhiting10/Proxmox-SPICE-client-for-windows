@@ -10,7 +10,7 @@ vm = "107" # the vm id to initiate a connexion with
 username = "root@pam" # username and password to authenticate to the server must have console permission 
 relm = "pam"
 password = "DJToby1234!"
-APIkey = "null"
+APIkey = "null2"
 # Log Levle: NONE, ERROR, INFO, DEBUG
 logLevle = "DEBUG"
 
