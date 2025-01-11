@@ -6,20 +6,20 @@ import os
 import subprocess
 import json
 
-server = "10.10.20.2" # The address of the server to connect to
-node = "miniboi1" # the nodename of the server
-vm = "108" # the vm id to initiate a connexion with
+server = "" # The address of the server to connect to
+node = "" # the nodename of the server
+vm = "" # the vm id to initiate a connexion with
 
 username = "root" # username and password to authenticate to the server must have console permission 
 relm = "pam"
-password = "DJToby1234!"
-APIkey = "null2" # not used yet
+password = ""
+APIkey = "null" # not used yet
 
 #path to folder contaning remote-viewer.exe
 remoteViewerPath=r"C:\Program Files (x86)\VirtViewer v11.0-256\bin"
 # Log Levle: NONE, ERROR, INFO, DEBUG
 logLevle = "INFO"
-SetionTitle="The Lab"
+SetionTitle="Proxmox SPICE client for windows"
 
 def writeToLog(message,levle="INFO"):
     if (logLevle=="DEBUG"):
