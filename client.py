@@ -1,33 +1,51 @@
+##########################################
+######        Vertion 2.0.0         ######
+##########################################
+
 import os
 import subprocess
 import json
 
 server = "10.10.20.2" # The address of the server to connect to
 node = "miniboi1" # the nodename of the server
+vm = "108" # the vm id to initiate a connexion with
 
-vm = "107" # the vm id to initiate a connexion with
-
-username = "root@pam" # username and password to authenticate to the server must have console permission 
+username = "root" # username and password to authenticate to the server must have console permission 
 relm = "pam"
 password = "DJToby1234!"
-APIkey = "null2"
-# Log Levle: NONE, ERROR, INFO, DEBUG
-logLevle = "DEBUG"
+APIkey = "null2" # not used yet
 
-def getAUTH(username,password,server):
+#path to folder contaning remote-viewer.exe
+remoteViewerPath=r"C:\Program Files (x86)\VirtViewer v11.0-256\bin"
+# Log Levle: NONE, ERROR, INFO, DEBUG
+logLevle = "INFO"
+SetionTitle="The Lab"
+
+def writeToLog(message,levle="INFO"):
+    if (logLevle=="DEBUG"):
+        print(message)
+    elif (logLevle=="INFO" and (levle=="INFO" or levle=="ERROR")):
+        print(message)
+    elif (logLevle=="ERROR" and (levle=="ERROR")):
+        print(message)
+    else:
+        if ((logLevle=="INFO" or logLevle=="DEBUG") and not (levle=="NONE" or levle=="ERROR" or levle=="INFO" or levle=="DEBUG")):
+            print(message)
+
+def getAUTH(username,password,relm,server):
     # Get Data from Proxmox Auth API and dump into a file
     # This command uses the provided credentials to contact the server
     # and get a ticket which is used for authenticating future commands
     # think "browser login cookies", it also returns what permissions the user has. 
-    cmd = 'curl -k -d "username={}&password={}"  https://{}:8006/api2/json/access/ticket > ./Data'.format(username,password,server)
+    cmd = 'curl -k -d "username={}@{}&password={}"  https://{}:8006/api2/json/access/ticket > ./Data'.format(username,relm,password,server)
     os.system(cmd)
-    if (logLevle=="DEBUG"): print("Credentials obtaind for user {}".format(username))
+    writeToLog("Credentials obtaind for user {}".format(username),"INFO")
   
     # Read dump file containing the output of the ticket request
     File = open("./Data","r")
     Data = File.read()
     File.close()
-    #os.remove("Data")
+    os.remove("Data")
     
 
     # Get Ticket
@@ -36,7 +54,7 @@ def getAUTH(username,password,server):
     Start = '"ticket":"'
     End = '"'
     Ticket = (Data.split(Start))[1].split(End)[0]
-    if (logLevle=="DEBUG"): print("Ticket \"{}\"".format(Ticket))
+    writeToLog("Ticket \"{}\"".format(Ticket),"DEBUG")
 
     # Get Token
     # For added security, proxmox makes use of CSRF tokens which ensure each authentication can only be
@@ -45,14 +63,18 @@ def getAUTH(username,password,server):
     Start = '"CSRFPreventionToken":"'
     End = '"'
     Token = (Data.split(Start))[1].split(End)[0]
-    if (logLevle=="DEBUG"): print("CSRF Token \"{}\"".format(Token))
-  
+    writeToLog("CSRF Token \"{}\"".format(Token),"DEBUG")
+
+    return [Ticket,Token]
+
+def ConnectToSPICE(auth,server,node,VMid):
     # Get proxy DATA
+    writeToLog("Atmpting to connect","INFO")
     # To connect to each VM, we are using the SPICE protocol, a type of remote desktop application.
-    # This command connects to the server using the credentials which we just retrieved and requests the
+    # This command connects to the server using the authorization ticket and requests the
     # information witch is used to initiate a SPICE connexion with the requested VM id
-    cmd = 'curl -f -X POST -s -S -k -b "PVEAuthCookie={}" -H "CSRFPreventionToken: {}" https://{}:8006/api2/json/nodes/{}/qemu/{}/spiceproxy'.format(Ticket,Token,server,node,vm)
-    if (logLevle=="DEBUG"): print("Command \"{}\"".format(cmd))
+    cmd = 'curl -f -X POST -s -S -k -b "PVEAuthCookie={}" -H "CSRFPreventionToken: {}" https://{}:8006/api2/json/nodes/{}/qemu/{}/spiceproxy'.format(auth[0],auth[1],server,node,VMid)
+    writeToLog("Command \"{}\"".format(cmd),"DEBUG")
 
 
     # As this command is a bit more finicky and takes longer to run, we will use the "subprocess.run"
@@ -64,43 +86,44 @@ def getAUTH(username,password,server):
     try:
         # Run command and read in the data
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
-        response = json.loads(result.stdout.decode())
+        response = json.loads(result.stdout.decode()) # read json
         data = response['data']
-    
-        # Create .vv file content and add the data sources
+
+        # Create .vv file and add the reqierd content by
+        # selectively picking information from the Json 
         vv_content = f"""[virt-viewer]
-type=spice
-password={data['password']}
-title=The lab
-proxy={server}:3128
-host={data['host']}
-tls-port={data['tls-port']}
-host-subject={data['host-subject']}
-ca={data['ca']}
-fullscreen=1
+    type=spice
+    password={data['password']}
+    title={SetionTitle}
+    proxy={server}:3128
+    host={data['host']}
+    tls-port={data['tls-port']}
+    host-subject={data['host-subject']}
+    ca={data['ca']}
+    fullscreen=1
         """
+
         # Save to spiceproxy.vv
         with open("spiceproxy.vv", "w") as vv_file:
             vv_file.write(vv_content)
-        print("spiceproxy.vv file generated successfully.")
+        writeToLog("spiceproxy.vv file generated successfully.", "INFO")
 
     except subprocess.CalledProcessError as e:
-        print("Error during API call:", e.stderr.decode())
+        writeToLog("Error during API call, do you have the right VM ID?: "+ e.stderr.decode(), "ERROR")
     except json.JSONDecodeError:
-        print("Invalid response from API.")
-
-    
+        writeToLog("Invalid response from API.", "ERROR")
 
     # Connect
     # Launch the spice client, passing in the config that was just ceated
-    cmd = r'"C:\Program Files (x86)\VirtViewer v11.0-256\bin\remote-viewer.exe" -f ./spiceproxy.vv'
+    cmd = r'"{}\remote-viewer.exe" -f ./spiceproxy.vv'.format(remoteViewerPath)
 
     try:
         result = subprocess.run(cmd, shell=True, check=True)
-        print("SPICE viewer launched successfully.")
+        writeToLog("SPICE viewer launched successfully.", "INFO")
     except subprocess.CalledProcessError as e:
-        print(f"Error launching SPICE viewer: {e}")
+        writeToLog(f"Error launching SPICE viewer: {e}", "ERROR")
 
 
 
-getAUTH(username,password,server)
+AuthenticationTiket = getAUTH(username,password,relm,server)
+ConnectToSPICE(AuthenticationTiket,server,node,vm)
